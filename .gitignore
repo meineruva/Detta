@@ -15,3 +15,7 @@ ui-debug.log
 dist/
 .expo/
 .next/
+node_modules/
+.expo/
+.next/
+dist/
