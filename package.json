@@ -1,0 +1,13 @@
+{
+  "name": "detta-monorepo",
+  "private": true,
+  "workspaces": [
+    "mobile",
+    "web",
+    "shared",
+    "functions"
+  ],
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  }
+}

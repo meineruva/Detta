@@ -1,0 +1,17 @@
+node_modules/
+.env
+.env.local
+.env.*.local
+google-services.json
+GoogleService-Info.plist
+serviceAccountKey.json
+
+# Firebase
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+.DS_Store
+dist/
+.expo/
+.next/
