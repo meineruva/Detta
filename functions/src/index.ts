@@ -18,6 +18,7 @@ export * from "./functions/reviewAbsence";
 export * from "./functions/closeDay";
 export * from "./functions/analyzeCheckIn";
 export * from "./functions/resetStudentDevice";
+export * from "./functions/manageStaff";
 
 export const helloWorld = functions.https.onRequest((request, response) => {
     response.send("Hello from Firebase!");
