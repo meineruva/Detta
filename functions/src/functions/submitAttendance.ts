@@ -11,7 +11,37 @@ export const submitAttendance = functions.https.onCall(async (data, context) => 
     }
 
     const userId = context.auth.uid;
-    const { latitude, longitude } = data; // client timestamp for reference, but use server time for record
+    const { latitude, longitude, osDeviceId } = data; // client timestamp for reference, but use server time for record
+
+    // 0. Enforce Device Binding
+    const userRef = db.collection('users').doc(userId);
+    const userSnap = await userRef.get();
+    const userData = userSnap.data();
+
+    if (!userData) {
+        throw new functions.https.HttpsError("not-found", "User not found.");
+    }
+
+    if (userData.boundDevice) {
+        if (userData.boundDevice.osDeviceId !== osDeviceId) {
+            throw new functions.https.HttpsError("permission-denied", "Device mismatch. Attendance rejected.");
+        }
+    } else {
+        // Auto-bind on first submission if not already bound (fallback for existing logins)
+        // STRICT: Comment 1 says "if absent, create the boundDevice entry from request metadata"
+        await userRef.update({
+            boundDevice: {
+                platform: data.deviceModel?.includes('iPhone') ? 'ios' : 'android', // Approximate or pass platform param
+                osDeviceId: osDeviceId || "unknown",
+                deviceModel: data.deviceModel || "unknown",
+                osVersion: data.osVersion || "unknown",
+                appVersion: data.appVersion || "unknown",
+                boundAt: admin.firestore.Timestamp.now(),
+                resetCount: 0,
+                lastResetAt: null
+            }
+        });
+    }
 
     // 1. Validate Time Window (WIB UTC+7)
     const now = new Date();
@@ -85,7 +115,7 @@ export const submitAttendance = functions.https.onCall(async (data, context) => 
             bssid: data.bssid || null,
         },
         device: {
-            osDeviceId: data.deviceId || "unknown",
+            osDeviceId: data.osDeviceId || "unknown",
             deviceModel: data.deviceModel || "unknown",
             osVersion: data.osVersion || "unknown",
             appVersion: data.appVersion || "unknown",

@@ -3,14 +3,24 @@ service cloud.firestore {
   match /databases/{database}/documents {
     
     // Deny default
-    match /{document=**} {
-      allow read, write: if false;
+    // Flagged Check-Ins
+    match /flaggedCheckIns/{docId} {
+      allow read: if isAuthenticated() && isStaff();
+      allow write: if false; // Only Cloud Functions (Admin SDK)
+    }
+    
+    // Device Reset Logs
+    match /deviceResetLogs/{docId} {
+      allow read: if isAuthenticated() && isStaff();
+      allow write: if false; // Only Cloud Functions
     }
 
-    // Users: Read own profile, Write own profile (limited fields ideally, but allowing for now based on plan)
+    // Users: Read own, Staff read all student profiles. 
+    // Write own profile BUT deny writing to 'boundDevice' (must be done by server).
     match /users/{userId} {
-      allow read: if request.auth != null && request.auth.uid == userId;
-      allow write: if request.auth != null && request.auth.uid == userId; // Ideally strict schema validation
+      allow read: if request.auth != null && (request.auth.uid == userId || isStaff());
+      allow write: if request.auth != null && request.auth.uid == userId && 
+         (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['boundDevice'])); 
     }
     
     // Users by Username: Read-only for auth lookup
@@ -32,17 +42,17 @@ service cloud.firestore {
 
     // Absence Requests: Create own, Read own. Staff read/write (review).
     match /absenceRequests/{requestId} {
-      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
-      allow read: if request.auth != null && (resource.data.userId == request.auth.uid || isStaff());
-      allow update: if request.auth != null && isStaff(); // Staff reviews
+        allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+        allow read: if request.auth != null && (resource.data.userId == request.auth.uid || isStaff());
+        allow update: if request.auth != null && isStaff(); // Staff reviews
     }
     
-    // Staff Whitelist: Read-only for everyone (or protected? App needs to query it).
-    // Better: Read-only for authenticated users to check their own role? 
-    // Plan says: "protected users/classes/whitelist collections accordingly"
+    // Staff Whitelist: Read-only for Authenticated (to check roles). Write: Admin via Console/Functions only (or strictly limited)
+    // Comment says "restrict staffWhitelist writes to admins".
+    // We can allow write if the user is an admin check.
     match /staffWhitelist/{email} {
         allow read: if request.auth != null;
-        allow write: if false; // Admin console only
+        allow write: if isStaff() && request.auth.token.role == 'admin'; // Assuming custom claim or trusting source for now
     }
 
     function isStaff() {

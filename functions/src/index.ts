@@ -12,7 +12,12 @@ if (process.env.FIREBASE_SERVICE_ACCOUNT_PATH) {
 export * from './functions/submitAttendance';
 export * from './functions/closeDay';
 export * from './functions/reviewAbsence';
-export * from './functions/bulkImportStudents';
+export * from "./functions/bulkImportStudents";
+export * from "./functions/submitAttendance";
+export * from "./functions/reviewAbsence";
+export * from "./functions/closeDay";
+export * from "./functions/analyzeCheckIn";
+export * from "./functions/resetStudentDevice";
 
 export const helloWorld = functions.https.onRequest((request, response) => {
     response.send("Hello from Firebase!");
