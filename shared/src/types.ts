@@ -109,6 +109,11 @@ export interface StaffWhitelist {
     addedAt: Timestamp;
 }
 
+export interface UsernameMapping {
+    userId: string;
+    email: string;
+}
+
 export interface Class {
     classId: string;
     name: string;
