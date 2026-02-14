@@ -1,21 +1,61 @@
+# Dependencies
 node_modules/
+.pnp
+.pnp.js
+
+# Environment variables (IMPORTANT - don't commit secrets!)
 .env
 .env.local
 .env.*.local
-google-services.json
-GoogleService-Info.plist
-serviceAccountKey.json
+**/.env
+
+# Build outputs
+/mobile/.expo/
+/mobile/dist/
+/mobile/android/build/
+/mobile/ios/build/
+/web/.next/
+/web/out/
+/functions/lib/
+
+# OS files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# IDE
+.vscode/
+.idea/
+*.sublime-*
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
 
 # Firebase
 .firebase/
 firebase-debug.log
 firestore-debug.log
 ui-debug.log
+*.cache
+
+# Testing
+coverage/
+.nyc_output/
+
+# Temporary files
+*.tmp
+*.temp
 .DS_Store
-dist/
-.expo/
-.next/
-node_modules/
-.expo/
-.next/
-dist/
+
+# Error logs (from executions)
+*.txt
+!README.txt
+
+# Package manager
+.yarn/
+.pnp.*
