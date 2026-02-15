@@ -24,8 +24,10 @@ service cloud.firestore {
     }
     
     // Users by Username: Read-only for auth lookup
+    // Users by Username: Read-only for auth lookup
     match /users_by_username/{username} {
-      allow get: if request.auth != null; // Allow get specific doc (lookup)
+      allow get: if true; // Public lookup for login
+      allow write: if false; // Only Cloud Functions
     }
 
     // Attendance Records: Read own, Staff read all. DENY direct writes (must go through Function)
