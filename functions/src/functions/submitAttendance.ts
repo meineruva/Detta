@@ -2,6 +2,7 @@ import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
 import { AttendanceRecord } from "@detta/shared";
 import * as geolib from "geolib";
+import { utcToZonedTime, format } from "date-fns-tz";
 
 const db = admin.firestore();
 
@@ -11,9 +12,9 @@ export const submitAttendance = functions.https.onCall(async (data, context) => 
     }
 
     const userId = context.auth.uid;
-    const { latitude, longitude, osDeviceId } = data; // client timestamp for reference, but use server time for record
+    const { latitude, longitude, osDeviceId } = data; 
 
-    // 0. Enforce Device Binding
+    // 0. Enforce Device Binding 
     const userRef = db.collection('users').doc(userId);
     const userSnap = await userRef.get();
     const userData = userSnap.data();
@@ -27,11 +28,9 @@ export const submitAttendance = functions.https.onCall(async (data, context) => 
             throw new functions.https.HttpsError("permission-denied", "Device mismatch. Attendance rejected.");
         }
     } else {
-        // Auto-bind on first submission if not already bound (fallback for existing logins)
-        // STRICT: Comment 1 says "if absent, create the boundDevice entry from request metadata"
         await userRef.update({
             boundDevice: {
-                platform: data.deviceModel?.includes('iPhone') ? 'ios' : 'android', // Approximate or pass platform param
+                platform: data.deviceModel?.includes('iPhone') ? 'ios' : 'android',
                 osDeviceId: osDeviceId || "unknown",
                 deviceModel: data.deviceModel || "unknown",
                 osVersion: data.osVersion || "unknown",
@@ -45,7 +44,15 @@ export const submitAttendance = functions.https.onCall(async (data, context) => 
 
     // 1. Validate Time Window (WIB UTC+7)
     const now = new Date();
-    const wibTime = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Jakarta" }));
+    const timeZone = 'Asia/Jakarta';
+    const wibTime = utcToZonedTime(now, timeZone);
+    
+    // Comment 2: Weekend validation
+    const dayOfWeek = wibTime.getDay();
+    if (dayOfWeek === 0 || dayOfWeek === 6) {
+        throw new functions.https.HttpsError('failed-precondition', 'Attendance is only allowed on school days (Monday-Friday)');
+    }
+
     const hour = wibTime.getHours();
     const minute = wibTime.getMinutes();
 
@@ -74,7 +81,6 @@ export const submitAttendance = functions.https.onCall(async (data, context) => 
             polygon
         );
     } else {
-        // Fallback or skip if not configured (should be configured)
         console.warn("GEOFENCE_POLYGON not configured.");
     }
 
@@ -82,8 +88,18 @@ export const submitAttendance = functions.https.onCall(async (data, context) => 
         throw new functions.https.HttpsError("failed-precondition", "Outside school geofence.");
     }
 
+    // Comment 3: Android WiFi SSID enforcement
+    const platform = data.deviceModel?.includes('iPhone') ? 'ios' : 'android';
+    if (platform === 'android') {
+        const requiredSsid = process.env.SCHOOL_WIFI_SSID || 'SMAN12_Student_Wifi';
+        if (data.ssid !== requiredSsid) {
+            throw new functions.https.HttpsError('failed-precondition', `Invalid WiFi network. Must be connected to ${requiredSsid}`);
+        }
+    }
+
     // 3. Deduplicate
-    const dateStr = wibTime.toISOString().split("T")[0]; // YYYY-MM-DD
+    // Comment 1: updated date string format
+    const dateStr = format(wibTime, 'yyyy-MM-dd', { timeZone: 'Asia/Jakarta' });
     const recordRef = db.doc(`attendance/${dateStr}/records/${userId}`);
     const recordSnap = await recordRef.get();
 
@@ -102,7 +118,7 @@ export const submitAttendance = functions.https.onCall(async (data, context) => 
     const record: AttendanceRecord = {
         userId,
         date: dateStr,
-        timestamp: admin.firestore.Timestamp.now(), // Server timestamp
+        timestamp: admin.firestore.Timestamp.now(), 
         status,
         source: "student",
         location: {

@@ -1,8 +1,15 @@
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
 import { User, UsernameMapping } from "@detta/shared";
+import * as sgMail from "@sendgrid/mail";
 
 const db = admin.firestore();
+
+// Initialize SendGrid
+const API_KEY = process.env.SENDGRID_API_KEY;
+if (API_KEY) {
+    sgMail.setApiKey(API_KEY);
+}
 
 interface BulkImportRow {
     name: string;
@@ -41,7 +48,8 @@ export const bulkImportStudents = functions.https.onCall(async (data: { students
         emailsFailed: 0,
     };
 
-    const createdUsers: { uid: string; email: string }[] = [];
+    // Store details needed for email: { uid, email, name, username, class }
+    const createdUsers: { uid: string; email: string; name: string; username: string; className: string }[] = [];
 
     // 2. Process Rows
     const currentYearShort = new Date().getFullYear().toString().slice(-2);
@@ -101,10 +109,10 @@ export const bulkImportStudents = functions.https.onCall(async (data: { students
                 username,
                 email,
                 name,
-                classId: className, // Assuming mapped or direct string
+                classId: className,
                 role: "student",
                 createdAt: admin.firestore.Timestamp.now(),
-                inviteStatus: "active", // Created by admin
+                inviteStatus: "active",
                 termsAcceptedAt: null,
                 boundDevice: null,
             };
@@ -119,7 +127,7 @@ export const bulkImportStudents = functions.https.onCall(async (data: { students
             batch.set(db.collection("users_by_username").doc(username), mappingDoc);
             await batch.commit();
 
-            createdUsers.push({ uid, email });
+            createdUsers.push({ uid, email, name, username, className });
             results.success++;
 
         } catch (error: any) {
@@ -127,21 +135,50 @@ export const bulkImportStudents = functions.https.onCall(async (data: { students
         }
     }
 
-    // 3. Batch Emails
+    // 3. Batch Emails with SendGrid
     const BATCH_SIZE = 100;
     const DELAY_MS = 1000;
+    const EMAIL_FROM = process.env.EMAIL_FROM || "noreply@sman12jakarta.sch.id";
 
     for (let i = 0; i < createdUsers.length; i += BATCH_SIZE) {
         const batch = createdUsers.slice(i, i + BATCH_SIZE);
 
         const emailPromises = batch.map(async (u) => {
             try {
-                await admin.auth().generatePasswordResetLink(u.email);
-                // In a real scenario, we'd send this link. 
-                // For this requirement, we satisfy "batch password-reset emails using generatePasswordResetLink"
-                // Counting success if the link is generated.
+                // Generate Reset Link
+                const link = await admin.auth().generatePasswordResetLink(u.email);
+
+                // Send Email via SendGrid
+                const msg = {
+                    to: u.email,
+                    from: EMAIL_FROM,
+                    subject: 'Welcome to Detta - Account Activation',
+                    html: `
+                        <div style="font-family: Arial, sans-serif; padding: 20px;">
+                            <h2>Welcome to Detta, ${u.name}!</h2>
+                            <p>Your account has been created.</p>
+                            <ul>
+                                <li><strong>Name:</strong> ${u.name}</li>
+                                <li><strong>Class:</strong> ${u.className}</li>
+                                <li><strong>Username:</strong> ${u.username}</li>
+                                <li><strong>Email:</strong> ${u.email}</li>
+                            </ul>
+                            <p>Please click the link below to set your password and activate your account:</p>
+                            <p><a href="${link}" style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Activate Account</a></p>
+                            <p>Or copy this link: ${link}</p>
+                            <p>Best regards,<br/>SMAN 12 Jakarta IT Team</p>
+                        </div>
+                    `,
+                };
+
+                await sgMail.send(msg);
+                console.log(`Email sent successfully to ${u.email}`);
                 return true;
-            } catch (error) {
+            } catch (error: any) {
+                console.error(`Failed to send email to ${u.email}:`, error);
+                if (error.response) {
+                    console.error(error.response.body);
+                }
                 return false;
             }
         });
