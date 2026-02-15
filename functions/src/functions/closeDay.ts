@@ -1,6 +1,7 @@
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
 import { AttendanceRecord } from "@detta/shared";
+import { format } from "date-fns-tz";
 
 const db = admin.firestore();
 
@@ -75,15 +76,65 @@ export const closeDay = functions.https.onCall(async (data, context) => {
     }
 
     // Update Summary with FLAT fields
-    if (newAbsences > 0) {
-        const summaryRef = db.doc(`attendance/${dateStr}/summary/daily`);
-        batch.set(summaryRef, {
-            absent: admin.firestore.FieldValue.increment(newAbsences),
-            total: admin.firestore.FieldValue.increment(newAbsences),
+    // Update Summary: Recompute Absent (Total - Present - Late - Excused)
+    // We do NOT increment total here, as it should be seeded.
+    const summaryRef = db.doc(`attendance/${dateStr}/summary/daily`);
+
+    // Check if summary exists to safely update? merge: true handles it.
+    // However, to compute absent based on others, we need to read it first or trust the formula.
+    // Comment says: "compute absent as total - present - late - excused and update the summary accordingly"
+
+    const summarySnap = await summaryRef.get();
+    if (summarySnap.exists) {
+        const data = summarySnap.data() || {};
+        const total = data.total || 0;
+        const present = data.present || 0;
+        const late = data.late || 0;
+        const excused = data.excused || 0;
+
+        const calculatedAbsent = total - (present + late + excused);
+
+        await summaryRef.set({
+            absent: calculatedAbsent,
             lastUpdated: admin.firestore.FieldValue.serverTimestamp()
         }, { merge: true });
-        batchCount++;
+    } else {
+        // If summary doesn't exist, maybe just set absent = newAbsences? 
+        // But the robust way requested is compuation. 
+        // If it doesn't exist, total is effectively 0, so this path is tricky.
+        // Assuming seeded summary exists.
+        await summaryRef.set({
+            absent: newAbsences,
+            lastUpdated: admin.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
     }
+
+    // Seed Next Day
+    const tomorrow = new Date(wibTime);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowStr = format(tomorrow, 'yyyy-MM-dd', { timeZone: 'Asia/Jakarta' }); // Need format import if not available, OR generic ISO
+    // Note: closeDay.ts imports are: functions, admin, AttendanceRecord. 
+    // wibTime was created with toLocaleString. 
+    // Let's use simple date manipulation if date-fns-tz isn't imported, BUT we added date-fns-tz to package.json.
+    // It is safer to import format. I will add the import at the top file level in a separate edit if needed, 
+    // or just use the existing dateStr logic logic:
+    // const tomorrowWib = new Date(tomorrow.toLocaleString("en-US", { timeZone: "Asia/Jakarta" }));
+    // const tomorrowDateStr = tomorrowWib.toISOString().split("T")[0];
+
+    // Actually, wibTime is a Date object.
+    // Let's stick to the prompt's request: "query the student count... create tomorrow's summary"
+
+    const nextDaySummaryRef = db.doc(`attendance/${tomorrowStr}/summary/daily`);
+    const studentCount = studentsSnap.size; // We already queried users where role == student
+
+    await nextDaySummaryRef.set({
+        total: studentCount,
+        present: 0,
+        late: 0,
+        absent: 0,
+        excused: 0,
+        lastUpdated: admin.firestore.FieldValue.serverTimestamp()
+    });
 
     await commitBatch();
 

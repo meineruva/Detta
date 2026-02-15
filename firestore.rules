@@ -4,23 +4,24 @@ service cloud.firestore {
     
     // Deny default
     // Flagged Check-Ins
+    // Flagged Check-Ins
     match /flaggedCheckIns/{docId} {
-      allow read: if isAuthenticated() && isStaff();
+      allow read: if request.auth != null && isStaff();
       allow write: if false; // Only Cloud Functions (Admin SDK)
     }
     
     // Device Reset Logs
     match /deviceResetLogs/{docId} {
-      allow read: if isAuthenticated() && isStaff();
+      allow read: if request.auth != null && isStaff();
       allow write: if false; // Only Cloud Functions
     }
 
     // Users: Read own, Staff read all student profiles. 
-    // Write own profile BUT deny writing to 'boundDevice' (must be done by server).
+    // Write own profile BUT deny writing to 'role', 'email', 'classId'. Allow 'boundDevice'.
     match /users/{userId} {
       allow read: if request.auth != null && (request.auth.uid == userId || isStaff());
       allow write: if request.auth != null && request.auth.uid == userId && 
-         (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['boundDevice'])); 
+         (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'email', 'classId'])); 
     }
     
     // Users by Username: Read-only for auth lookup

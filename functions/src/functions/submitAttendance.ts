@@ -12,7 +12,7 @@ export const submitAttendance = functions.https.onCall(async (data, context) => 
     }
 
     const userId = context.auth.uid;
-    const { latitude, longitude, osDeviceId } = data; 
+    const { latitude, longitude, osDeviceId } = data;
 
     // 0. Enforce Device Binding 
     const userRef = db.collection('users').doc(userId);
@@ -46,7 +46,7 @@ export const submitAttendance = functions.https.onCall(async (data, context) => 
     const now = new Date();
     const timeZone = 'Asia/Jakarta';
     const wibTime = utcToZonedTime(now, timeZone);
-    
+
     // Comment 2: Weekend validation
     const dayOfWeek = wibTime.getDay();
     if (dayOfWeek === 0 || dayOfWeek === 6) {
@@ -118,7 +118,7 @@ export const submitAttendance = functions.https.onCall(async (data, context) => 
     const record: AttendanceRecord = {
         userId,
         date: dateStr,
-        timestamp: admin.firestore.Timestamp.now(), 
+        timestamp: admin.firestore.Timestamp.now(),
         status,
         source: "student",
         location: {
@@ -151,7 +151,6 @@ export const submitAttendance = functions.https.onCall(async (data, context) => 
     const summaryRef = db.doc(`attendance/${dateStr}/summary/daily`);
     await summaryRef.set({
         [status.toLowerCase()]: admin.firestore.FieldValue.increment(1),
-        total: admin.firestore.FieldValue.increment(1),
         lastUpdated: admin.firestore.FieldValue.serverTimestamp()
     }, { merge: true });
 

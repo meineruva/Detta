@@ -73,7 +73,6 @@ export const reviewAbsence = functions.https.onCall(async (data, context) => {
                 const summaryRef = db.doc(`attendance/${dateStr}/summary/daily`);
                 batch.set(summaryRef, {
                     excused: admin.firestore.FieldValue.increment(1),
-                    total: admin.firestore.FieldValue.increment(1),
                     lastUpdated: admin.firestore.FieldValue.serverTimestamp()
                 }, { merge: true });
             }
