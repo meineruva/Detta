@@ -1,4 +1,3 @@
-import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
 
 // Initialize Admin SDK
@@ -9,19 +8,14 @@ if (process.env.FIREBASE_SERVICE_ACCOUNT_PATH) {
     admin.initializeApp();
 }
 
-export * from './functions/submitAttendance';
-export * from './functions/closeDay';
-export * from './functions/reviewAbsence';
-export * from "./functions/bulkImportStudents";
-export * from "./functions/submitAttendance";
-export * from "./functions/reviewAbsence";
-export * from "./functions/closeDay";
 export * from "./functions/analyzeCheckIn";
-export * from "./functions/resetStudentDevice";
-export * from "./functions/resetStudentDevice";
+export * from "./functions/bulkImportStudents";
+export * from "./functions/closeDay";
+export * from "./functions/healthCheck";
 export * from "./functions/manageStaff";
+export * from "./functions/manualOverrideAttendance";
+export * from "./functions/resetStudentDevice";
+export * from "./functions/reviewAbsence";
+export * from "./functions/reviewFlaggedCheckIn";
 export * from "./functions/setStaffClaims";
-
-export const helloWorld = functions.https.onRequest((request, response) => {
-    response.send("Hello from Firebase!");
-});
+export * from "./functions/submitAttendance";

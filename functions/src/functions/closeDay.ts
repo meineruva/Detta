@@ -1,7 +1,7 @@
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
 import { AttendanceRecord } from "@detta/shared";
-import { format } from "date-fns-tz";
+import { utcToZonedTime, format } from "date-fns-tz";
 
 const db = admin.firestore();
 
@@ -23,8 +23,8 @@ export const closeDay = functions.https.onCall(async (data, context) => {
     }
 
     const now = new Date();
-    const wibTime = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Jakarta" }));
-    const dateStr = wibTime.toISOString().split("T")[0]; // YYYY-MM-DD
+    const wibTime = utcToZonedTime(now, 'Asia/Jakarta');
+    const dateStr = format(wibTime, 'yyyy-MM-dd', { timeZone: 'Asia/Jakarta' });
 
     const usersRef = db.collection("users");
     const attendanceRef = db.collection(`attendance/${dateStr}/records`);
@@ -112,17 +112,7 @@ export const closeDay = functions.https.onCall(async (data, context) => {
     // Seed Next Day
     const tomorrow = new Date(wibTime);
     tomorrow.setDate(tomorrow.getDate() + 1);
-    const tomorrowStr = format(tomorrow, 'yyyy-MM-dd', { timeZone: 'Asia/Jakarta' }); // Need format import if not available, OR generic ISO
-    // Note: closeDay.ts imports are: functions, admin, AttendanceRecord. 
-    // wibTime was created with toLocaleString. 
-    // Let's use simple date manipulation if date-fns-tz isn't imported, BUT we added date-fns-tz to package.json.
-    // It is safer to import format. I will add the import at the top file level in a separate edit if needed, 
-    // or just use the existing dateStr logic logic:
-    // const tomorrowWib = new Date(tomorrow.toLocaleString("en-US", { timeZone: "Asia/Jakarta" }));
-    // const tomorrowDateStr = tomorrowWib.toISOString().split("T")[0];
-
-    // Actually, wibTime is a Date object.
-    // Let's stick to the prompt's request: "query the student count... create tomorrow's summary"
+    const tomorrowStr = format(tomorrow, 'yyyy-MM-dd', { timeZone: 'Asia/Jakarta' });
 
     const nextDaySummaryRef = db.doc(`attendance/${tomorrowStr}/summary/daily`);
     const studentCount = studentsSnap.size; // We already queried users where role == student

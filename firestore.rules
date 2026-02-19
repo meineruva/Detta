@@ -58,6 +58,12 @@ service cloud.firestore {
         allow write: if isStaff() && request.auth.token.role == 'admin'; // Assuming custom claim or trusting source for now
     }
 
+    // Classes: Read/Write by Staff/Admin
+    match /classes/{classId} {
+        allow read: if request.auth != null && isStaff();
+        allow write: if request.auth != null && isStaff();
+    }
+
     function isStaff() {
        // Logic to check if user is staff. 
        // Often requires custom claims or a look up. 
