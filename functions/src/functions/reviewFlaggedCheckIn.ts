@@ -20,7 +20,7 @@ export const reviewFlaggedCheckIn = functions.https.onCall(async (data, context)
         throw new functions.https.HttpsError("invalid-argument", "Missing required fields.");
     }
 
-    const allowedActions = ['Dismissed', 'Escalated', 'Resolved'];
+    const allowedActions = ['Dismissed', 'Escalated', 'Reviewed'];
     if (!allowedActions.includes(action)) {
         throw new functions.https.HttpsError("invalid-argument", "Invalid action.");
     }
@@ -31,7 +31,7 @@ export const reviewFlaggedCheckIn = functions.https.onCall(async (data, context)
         status: action,
         reviewedBy: context.auth.uid,
         reviewedAt: admin.firestore.FieldValue.serverTimestamp(),
-        reviewNotes: notes || ""
+        notes: notes || null
     });
 
     return { success: true };

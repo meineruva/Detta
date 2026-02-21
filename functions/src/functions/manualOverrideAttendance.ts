@@ -39,7 +39,7 @@ export const manualOverrideAttendance = functions.https.onCall(async (data, cont
             userId,
             date,
             status,
-            source: "manual",
+            source: "staff",
             timestamp: admin.firestore.Timestamp.now(), // Override time is now
             // Preserving or Defaulting other fields since we are overwriting or creating
             // Verification requirement: "audit fields per ticket"
@@ -63,6 +63,10 @@ export const manualOverrideAttendance = functions.https.onCall(async (data, cont
             lastUpdated: admin.firestore.FieldValue.serverTimestamp()
         };
 
+        if (!oldStatus) {
+            summaryUpdates['total'] = admin.firestore.FieldValue.increment(1);
+        }
+
         if (oldStatus && oldStatus !== status) {
             summaryUpdates[oldStatus.toLowerCase()] = admin.firestore.FieldValue.increment(-1);
         }
@@ -70,14 +74,6 @@ export const manualOverrideAttendance = functions.https.onCall(async (data, cont
         // Increment new status (only if it changed or is new)
         if (oldStatus !== status) {
             summaryUpdates[status.toLowerCase()] = admin.firestore.FieldValue.increment(1);
-
-            // If new record, increment total
-            if (!oldStatus) {
-                // But wait, total is usually seeded by closeDay or incremented by submitAttendance. 
-                // If we create a record manually for a student who verified didn't exist in summary? 
-                // Safest is to increment total if new.
-                summaryUpdates['total'] = admin.firestore.FieldValue.increment(1);
-            }
         }
 
         if (Object.keys(summaryUpdates).length > 1) { // more than just lastUpdated

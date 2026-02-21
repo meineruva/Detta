@@ -20,8 +20,10 @@ service cloud.firestore {
     // Write own profile BUT deny writing to 'role', 'email', 'classId'. Allow 'boundDevice'.
     match /users/{userId} {
       allow read: if request.auth != null && (request.auth.uid == userId || isStaff());
-      allow write: if request.auth != null && request.auth.uid == userId && 
+      allow update: if request.auth != null && request.auth.uid == userId && 
          (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'email', 'classId'])); 
+      allow create: if false;
+      allow delete: if false;
     }
     
     // Users by Username: Read-only for auth lookup
@@ -61,7 +63,7 @@ service cloud.firestore {
     // Classes: Read/Write by Staff/Admin
     match /classes/{classId} {
         allow read: if request.auth != null && isStaff();
-        allow write: if request.auth != null && isStaff();
+        allow write: if request.auth != null && request.auth.token.role == 'admin';
     }
 
     function isStaff() {
