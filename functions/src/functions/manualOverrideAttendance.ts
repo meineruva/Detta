@@ -63,10 +63,6 @@ export const manualOverrideAttendance = functions.https.onCall(async (data, cont
             lastUpdated: admin.firestore.FieldValue.serverTimestamp()
         };
 
-        if (!oldStatus) {
-            summaryUpdates['total'] = admin.firestore.FieldValue.increment(1);
-        }
-
         if (oldStatus && oldStatus !== status) {
             summaryUpdates[oldStatus.toLowerCase()] = admin.firestore.FieldValue.increment(-1);
         }

@@ -4,15 +4,16 @@ exports.submitAttendance = void 0;
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const geolib = require("geolib");
+const date_fns_tz_1 = require("date-fns-tz");
 const db = admin.firestore();
 exports.submitAttendance = functions.https.onCall(async (data, context) => {
-    var _a;
+    var _a, _b;
     if (!context.auth) {
         throw new functions.https.HttpsError("unauthenticated", "User must be logged in.");
     }
     const userId = context.auth.uid;
-    const { latitude, longitude, osDeviceId } = data; // client timestamp for reference, but use server time for record
-    // 0. Enforce Device Binding
+    const { latitude, longitude, osDeviceId } = data;
+    // 0. Enforce Device Binding 
     const userRef = db.collection('users').doc(userId);
     const userSnap = await userRef.get();
     const userData = userSnap.data();
@@ -25,11 +26,9 @@ exports.submitAttendance = functions.https.onCall(async (data, context) => {
         }
     }
     else {
-        // Auto-bind on first submission if not already bound (fallback for existing logins)
-        // STRICT: Comment 1 says "if absent, create the boundDevice entry from request metadata"
         await userRef.update({
             boundDevice: {
-                platform: ((_a = data.deviceModel) === null || _a === void 0 ? void 0 : _a.includes('iPhone')) ? 'ios' : 'android', // Approximate or pass platform param
+                platform: ((_a = data.deviceModel) === null || _a === void 0 ? void 0 : _a.includes('iPhone')) ? 'ios' : 'android',
                 osDeviceId: osDeviceId || "unknown",
                 deviceModel: data.deviceModel || "unknown",
                 osVersion: data.osVersion || "unknown",
@@ -42,7 +41,13 @@ exports.submitAttendance = functions.https.onCall(async (data, context) => {
     }
     // 1. Validate Time Window (WIB UTC+7)
     const now = new Date();
-    const wibTime = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Jakarta" }));
+    const timeZone = 'Asia/Jakarta';
+    const wibTime = (0, date_fns_tz_1.utcToZonedTime)(now, timeZone);
+    // Comment 2: Weekend validation
+    const dayOfWeek = wibTime.getDay();
+    if (dayOfWeek === 0 || dayOfWeek === 6) {
+        throw new functions.https.HttpsError('failed-precondition', 'Attendance is only allowed on school days (Monday-Friday)');
+    }
     const hour = wibTime.getHours();
     const minute = wibTime.getMinutes();
     const startTime = process.env.ATTENDANCE_START_TIME || "06:30";
@@ -63,14 +68,22 @@ exports.submitAttendance = functions.https.onCall(async (data, context) => {
         isWithinGeofence = geolib.isPointInPolygon({ latitude, longitude }, polygon);
     }
     else {
-        // Fallback or skip if not configured (should be configured)
         console.warn("GEOFENCE_POLYGON not configured.");
     }
     if (!isWithinGeofence) {
         throw new functions.https.HttpsError("failed-precondition", "Outside school geofence.");
     }
+    // Comment 3: Android WiFi SSID enforcement
+    const platform = ((_b = data.deviceModel) === null || _b === void 0 ? void 0 : _b.includes('iPhone')) ? 'ios' : 'android';
+    if (platform === 'android') {
+        const requiredSsid = process.env.SCHOOL_WIFI_SSID || 'SMAN12_Student_Wifi';
+        if (data.ssid !== requiredSsid) {
+            throw new functions.https.HttpsError('failed-precondition', `Invalid WiFi network. Must be connected to ${requiredSsid}`);
+        }
+    }
     // 3. Deduplicate
-    const dateStr = wibTime.toISOString().split("T")[0]; // YYYY-MM-DD
+    // Comment 1: updated date string format
+    const dateStr = (0, date_fns_tz_1.format)(wibTime, 'yyyy-MM-dd', { timeZone: 'Asia/Jakarta' });
     const recordRef = db.doc(`attendance/${dateStr}/records/${userId}`);
     const recordSnap = await recordRef.get();
     if (recordSnap.exists) {
@@ -85,7 +98,7 @@ exports.submitAttendance = functions.https.onCall(async (data, context) => {
     const record = {
         userId,
         date: dateStr,
-        timestamp: admin.firestore.Timestamp.now(), // Server timestamp
+        timestamp: admin.firestore.Timestamp.now(),
         status,
         source: "student",
         location: {
@@ -116,7 +129,6 @@ exports.submitAttendance = functions.https.onCall(async (data, context) => {
     const summaryRef = db.doc(`attendance/${dateStr}/summary/daily`);
     await summaryRef.set({
         [status.toLowerCase()]: admin.firestore.FieldValue.increment(1),
-        total: admin.firestore.FieldValue.increment(1),
         lastUpdated: admin.firestore.FieldValue.serverTimestamp()
     }, { merge: true });
     return { success: true, status };

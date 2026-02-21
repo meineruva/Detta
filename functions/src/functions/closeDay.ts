@@ -32,13 +32,14 @@ export const closeDay = functions.https.onCall(async (data, context) => {
     // Get all students
     const studentsSnap = await usersRef.where("role", "==", "student").get();
 
-    const batch = db.batch();
+    let batch = db.batch();
     let batchCount = 0;
     let newAbsences = 0;
 
     const commitBatch = async () => {
         if (batchCount > 0) {
             await batch.commit();
+            batch = db.batch();
             batchCount = 0;
         }
     };

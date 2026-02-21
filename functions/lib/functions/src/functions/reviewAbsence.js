@@ -9,7 +9,10 @@ exports.reviewAbsence = functions.https.onCall(async (data, context) => {
     if (!context.auth) {
         throw new functions.https.HttpsError("unauthenticated", "User must be logged in.");
     }
-    // Ideally verify role === 'staff' or 'admin' here
+    const token = context.auth.token;
+    if (token.role !== 'staff' && token.role !== 'admin') {
+        throw new functions.https.HttpsError('permission-denied', 'Unauthorized. Staff/Admin only.');
+    }
     const { requestId, approved, reason } = data;
     if (approved === false && !reason) {
         throw new functions.https.HttpsError("invalid-argument", "Reason is required for rejection.");
@@ -31,7 +34,6 @@ exports.reviewAbsence = functions.https.onCall(async (data, context) => {
         status,
         reviewedBy: context.auth.uid,
         reviewedAt: admin.firestore.FieldValue.serverTimestamp(),
-        reviewNotes: reason || "",
         rejectionReason: approved ? null : reason
     });
     // 3. If Approved, Create Attendance Records (Multi-date)
@@ -62,7 +64,6 @@ exports.reviewAbsence = functions.https.onCall(async (data, context) => {
                 const summaryRef = db.doc(`attendance/${dateStr}/summary/daily`);
                 batch.set(summaryRef, {
                     excused: admin.firestore.FieldValue.increment(1),
-                    total: admin.firestore.FieldValue.increment(1),
                     lastUpdated: admin.firestore.FieldValue.serverTimestamp()
                 }, { merge: true });
             }
