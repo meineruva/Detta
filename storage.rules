@@ -12,5 +12,10 @@ service firebase.storage {
       allow write: if request.auth != null && request.auth.uid == userId && request.resource.size < 5 * 1024 * 1024; // 5MB limit
       allow read: if request.auth != null && (request.auth.uid == userId || request.auth.token.role == 'staff' || request.auth.token.role == 'admin');
     }
+
+    match /absence_proofs/{userId}/{fileName} {
+      allow write: if request.auth != null && request.auth.uid == userId && request.resource.size < 5 * 1024 * 1024; // 5MB limit
+      allow read: if request.auth != null && (request.auth.uid == userId || request.auth.token.role == 'staff' || request.auth.token.role == 'admin');
+    }
   }
 }

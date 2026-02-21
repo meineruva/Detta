@@ -36,12 +36,12 @@ export const closeDay = functions.https.onCall(async (data, context) => {
     let batchCount = 0;
     let newAbsences = 0;
 
-    const commitBatch = async () => {
+    const commitBatch = async (currentBatch: admin.firestore.WriteBatch): Promise<admin.firestore.WriteBatch> => {
         if (batchCount > 0) {
-            await batch.commit();
-            batch = db.batch();
+            await currentBatch.commit();
             batchCount = 0;
         }
+        return db.batch();
     };
 
     for (const studentDoc of studentsSnap.docs) {
@@ -73,7 +73,7 @@ export const closeDay = functions.https.onCall(async (data, context) => {
             newAbsences++;
         }
 
-        if (batchCount >= 400) await commitBatch(); // Firestore batch limit is 500
+        if (batchCount >= 400) batch = await commitBatch(batch); // Firestore batch limit is 500
     }
 
     // Update Summary with FLAT fields
@@ -127,7 +127,7 @@ export const closeDay = functions.https.onCall(async (data, context) => {
         lastUpdated: admin.firestore.FieldValue.serverTimestamp()
     });
 
-    await commitBatch();
+    await commitBatch(batch);
 
     return { success: true, markedAbsent: newAbsences };
 });
